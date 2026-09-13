@@ -4,6 +4,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Scalar.AspNetCore;
+using Microsoft.OpenApi;
 
 using TodoApi.Dtos;
 using TodoApi.Models;
@@ -13,6 +15,23 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Components ??= new Microsoft.OpenApi.OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\""
+        };
+
+        return Task.CompletedTask;
+    });
+});
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -47,6 +66,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
@@ -180,13 +200,14 @@ app.MapPost("/api/login", (LoginDto dto, IConfiguration configuration)=>
 
    var credentials = new SigningCredentials(key,SecurityAlgorithms.HmacSha256);
 
-       var token = new JwtSecurityToken(
+      var token = new JwtSecurityToken(
         issuer: configuration["Jwt:Issuer"],
         audience: configuration["Jwt:Audience"],
         claims: claims,
-        expires: DateTime.UtcNow.AddDays(int.Parse(configuration["Jwt:ExpireDays"])),
-        signingCredentials: credentials
-    );
+        expires: DateTime.UtcNow.AddHours(1),
+        signingCredentials: credentials);
+
+    
     
     var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
     return Results.Ok(new JwtSecurityTokenHandler().WriteToken(token));
